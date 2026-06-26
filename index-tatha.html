@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tatha - 求职与陪伴，可持续</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --card: #1a1a20;
+      --border: #2a2a35;
+      --text: #eaeaf0;
+      --muted: #8b8b96;
+      --accent: #6366f1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .hero { text-align: center; padding: 3rem 1rem 2rem; }
+    .hero h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .hero p { color: var(--muted); font-size: 1rem; }
+    .pricing { max-width: 960px; margin: 0 auto; padding: 0 1rem 3rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; }
+    .card.popular { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .card .tag { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .card .price { font-size: 1.5rem; font-weight: 700; color: var(--accent); margin: 0.5rem 0; }
+    .card .price span { font-size: 0.875rem; font-weight: 400; color: var(--muted); }
+    .card .desc { font-size: 0.875rem; color: var(--muted); margin-bottom: 1rem; flex: 1; }
+    .card ul { list-style: none; font-size: 0.8125rem; color: var(--text); margin-bottom: 1rem; }
+    .card ul li { position: relative; padding-left: 1rem; margin-bottom: 0.25rem; }
+    .card ul li::before { content: "•"; position: absolute; left: 0; color: var(--accent); }
+    .card .btn-primary { background: var(--accent); color: #fff; border: none; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.875rem; cursor: pointer; font-weight: 600; width: 100%; text-align: center; display: inline-block; text-decoration: none; }
+    .card .btn-secondary { background: var(--border); color: var(--text); border: none; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.875rem; cursor: pointer; font-weight: 600; width: 100%; text-align: center; display: inline-block; text-decoration: none; }
+    .footer-nav { text-align: center; padding: 1.5rem; }
+    .footer-nav a { color: var(--muted); font-size: 0.875rem; margin: 0 0.75rem; text-decoration: none; }
+    .footer-nav a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <h1>Tatha</h1>
+    <p>求职与陪伴，可持续的 AI 助理</p>
+  </div>
+  <div class="pricing" id="pricing-cards">
+    <div class="card">
+      <div class="tag">免费体验</div>
+      <div class="price"><span class="currency-symbol">¥</span><span class="price-value" data-region-price="free_monthly">0</span><span>/月</span></div>
+      <div class="desc">适合初次尝试</div>
+      <ul>
+        <li>每日 1 次 AI 问答</li>
+        <li>每日 3 次职位匹配</li>
+        <li>基础诗词推荐</li>
+      </ul>
+      <a href="auth.html" class="btn-secondary">免费开始</a>
+    </div>
+    <div class="card popular">
+      <div class="tag">推荐</div>
+      <div class="price"><span class="currency-symbol">¥</span><span class="price-value" data-region-price="basic_monthly">99</span><span>/月</span></div>
+      <div class="desc">适合求职者日常使用</div>
+      <ul>
+        <li>每日 15 次 AI 问答</li>
+        <li>每日 20 次职位匹配</li>
+        <li>简历上传解析</li>
+        <li>MBTI 性格测评</li>
+        <li>诗词 RAG 推荐</li>
+      </ul>
+      <a href="auth.html?tier=basic" class="btn-primary">立即订阅</a>
+    </div>
+    <div class="card">
+      <div class="tag">专业版</div>
+      <div class="price"><span class="currency-symbol">¥</span><span class="price-value" data-region-price="pro_monthly">299</span><span>/月</span></div>
+      <div class="desc">适合重度用户</div>
+      <ul>
+        <li>无限 AI 问答</li>
+        <li>无限职位匹配</li>
+        <li>优先支持</li>
+        <li>API 接入权限</li>
+      </ul>
+      <a href="auth.html?tier=pro" class="btn-secondary">升级 Pro</a>
+    </div>
+  </div>
+  <div class="footer-nav">
+    <a href="auth.html">登录</a>
+    <a href="demo.html">演示</a>
+  </div>
+
+  <script>
+    (function() {
+      fetch('http://localhost:8010/v1/region')
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+        .then(function(data) {
+          var p = data.pricing || {};
+          var sym = data.currency === 'USD' ? '$' : '¥';
+          document.querySelectorAll('.currency-symbol').forEach(function(el) { el.textContent = sym; });
+          document.querySelectorAll('[data-region-price]').forEach(function(el) {
+            var key = el.getAttribute('data-region-price');
+            var val = p[key];
+            if (val !== undefined && val !== null) el.textContent = val;
+          });
+        })
+        .catch(function() {});
+    })();
+  </script>
+</body>
+</html>
