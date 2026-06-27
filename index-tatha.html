@@ -85,7 +85,7 @@
 
   <script>
     (function() {
-      fetch('http://1.14.202.161/v1/region')
+      fetch('https://api.genz.ltd/v1/region')
         .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
         .then(function(data) {
           var p = data.pricing || {};
