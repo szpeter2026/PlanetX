@@ -502,6 +502,25 @@ body {
     </div>
   </div>
 
+  <!-- ===== BRUTE-FORCE SAFETY NET: always past loading in 4s ===== -->
+  <script>
+    setTimeout(function() {
+      var el = document.getElementById('screen-loading');
+      if (el && el.style.display !== 'none' && !el.classList.contains('force-hidden')) {
+        // Try switchScreen first
+        if (typeof switchScreen === 'function') {
+          try { switchScreen('screen-loading', 'screen-auth'); } catch(e) {}
+        }
+        // BRUTE FORCE: hide loading, show auth
+        el.style.display = 'none';
+        el.classList.add('force-hidden');
+        var auth = document.getElementById('screen-auth');
+        if (auth) auth.style.display = 'block';
+        console.log('%c[PlanetX] Brute-force safety net triggered', 'color:orange;');
+      }
+    }, 4000);
+  </script>
+
   <!-- ===== SCREEN: Onboarding - Character Select ===== -->
   <div class="screen" id="screen-onboarding">
     <div class="header">
@@ -757,10 +776,28 @@ body {
 </div><!-- /app -->
 
 <script>
-// ===================== SUPABASE INIT =====================
-const SUPABASE_URL = 'https://ihuddnluwggbdppheixu.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_O6vccVYBMxJrN_Vq2Td4Nw_2kHNQHu7';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ===================== SUPABASE INIT (with guards) =====================
+var SUPABASE_URL = 'https://ihuddnluwggbdppheixu.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_O6vccVYBMxJrN_Vq2Td4Nw_2kHNQHu7';
+var supabase = null;
+
+(function initSupabase() {
+  if (typeof window.supabase === 'undefined' || !window.supabase) {
+    console.warn('[PlanetX] Supabase SDK not loaded (CDN blocked?). Running in offline mode.');
+    // Create a mock supabase object so the rest of the code doesn't crash
+    supabase = {
+      auth: { getSession: function() { return Promise.resolve({ data: { session: null } }); } },
+      from: function() { return { select: function() { return Promise.resolve({ data: null, error: null }); }, insert: function() { return Promise.resolve({}); } }; }
+    };
+    return;
+  }
+  try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('%c[PlanetX] Supabase initialized', 'color:#C8FF50;');
+  } catch(e) {
+    console.warn('[PlanetX] Supabase init failed:', e);
+  }
+})();
 
 // ===================== GAME STATE =====================
 const STATE = {
@@ -836,11 +873,12 @@ async function signOut() {
 // ===================== LOAD PROFILE FROM SUPABASE =====================
 async function loadProfile(user) {
   STATE.user = user;
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
   
   if (data) {
     STATE.identity = data.identity;
@@ -906,8 +944,13 @@ async function loadProfile(user) {
     STATE.fleetId = member.fleet_id;
     await loadFleetData(member.fleet_id);
   }
-  
+
   updateHub();
+  } catch (err) {
+    console.warn('[PlanetX] Profile load failed (using defaults):', err);
+    // Use sensible defaults — user can still use the app
+    updateHub();
+  }
 }
 
 // ===================== INIT =====================
@@ -928,19 +971,69 @@ async function loadProfile(user) {
   container.appendChild(frag);
 })();
 
-// Check for existing session on load
+// ===== ULTIMATE SAFETY NET: force past loading screen no matter what =====
+// This runs in the parsing phase — before any async code
+(function forcePastLoading() {
+  // After 5s, if still on loading screen, FORCE show auth screen
+  // Use direct DOM manipulation, no function calls that might fail
+  setTimeout(function() {
+    var loading = document.getElementById('screen-loading');
+    var auth = document.getElementById('screen-auth');
+    if (loading && loading.classList.contains('active')) {
+      loading.classList.remove('active');
+      if (auth) {
+        auth.classList.add('active');
+        console.log('%c[PlanetX] Safety net triggered — forced to auth screen', 'color:orange;');
+      }
+    }
+  }, 5000);
+})();
+
+// Also catch any uncaught errors and log them visibly
+window.addEventListener('error', function(e) {
+  console.log('%c[PlanetX] UNCAUGHT ERROR: ' + (e.message || e.error), 'color:red;font-size:14px;');
+  // Still force past loading
+  setTimeout(function() {
+    var loading = document.getElementById('screen-loading');
+    var auth = document.getElementById('screen-auth');
+    if (loading && loading.classList.contains('active')) {
+      loading.classList.remove('active');
+      if (auth) auth.classList.add('active');
+    }
+  }, 1000);
+});
+
+// ===== SESSION CHECK (with full guards) =====
+let _loadingResolved = false;
+function resolveLoading(targetScreen) {
+  if (_loadingResolved) return;
+  _loadingResolved = true;
+  switchScreen('screen-loading', targetScreen);
+}
+// Safety net: force transition after 6s no matter what
+setTimeout(() => resolveLoading('screen-auth'), 6000);
+
 (async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && session.user) {
-    await loadProfile(session.user);
-    // Determine which screen to show
-    setTimeout(() => {
-      switchScreen('screen-loading', STATE.identity ? 'screen-hub' : 'screen-onboarding');
-    }, 2000);
-  } else {
-    setTimeout(() => {
-      switchScreen('screen-loading', 'screen-auth');
-    }, 2500);
+  try {
+    // Guard: supabase may not have loaded from CDN
+    if (typeof supabase === 'undefined' || !supabase?.auth?.getSession) {
+      console.warn('[PlanetX] Supabase SDK not loaded, falling back to auth screen');
+      return resolveLoading('screen-auth');
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user) {
+      await loadProfile(session.user);
+      // Sync referral (fire-and-forget, non-blocking)
+      syncReferralAfterLogin(session.user.id);
+      setTimeout(() => {
+        resolveLoading(STATE.identity ? 'screen-hub' : 'screen-onboarding');
+      }, 1500);
+    } else {
+      setTimeout(() => resolveLoading('screen-auth'), 2000);
+    }
+  } catch (err) {
+    console.warn('[PlanetX] Session check failed:', err);
+    resolveLoading('screen-auth');
   }
 })();
 
@@ -1960,46 +2053,25 @@ getInviteLink = function() {
   return base + '?ref=' + STATE._refCode;
 };
 
-// Cloud-sync ref param on load
-const _origCheckRefParam = checkRefParam;
-(function checkRefParam() {
-  const params = new URLSearchParams(window.location.search);
-  const ref = params.get('ref');
-  if (ref) {
-    STATE._referredBy = ref;
-    console.log('%c📡 检测到邀请来源: ' + ref, 'color:#00E5FF;');
-    try { localStorage.setItem('planetx_ref', ref); } catch(e) {}
-  }
-})();
+// checkRefParam is defined above as an IIFE — no need to re-wrap here
+// Referral sync after login is handled by syncReferralAfterLogin()
 
-// Extend checkSession to sync referral after login
-const _origCheckSession = checkSession;
-(async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && session.user) {
-    await loadProfile(session.user);
-    
-    // Sync referral
+// Sync referral after login (non-blocking, best-effort)
+async function syncReferralAfterLogin(userId) {
+  try {
     const storedRef = localStorage.getItem('planetx_ref');
-    if (storedRef) {
-      // Find the referring user by ref_code pattern
-      // Store referral record
+    if (storedRef && typeof supabase !== 'undefined' && supabase?.from) {
       await supabase.from('referrals').insert({
-        new_user_id: session.user.id,
+        new_user_id: userId,
         ref_code: storedRef
       });
       localStorage.removeItem('planetx_ref');
+      console.log('%c📡 邀请来源已记录: ' + storedRef, 'color:#00E5FF;');
     }
-    
-    setTimeout(() => {
-      switchScreen('screen-loading', STATE.identity ? 'screen-hub' : 'screen-onboarding');
-    }, 2000);
-  } else {
-    setTimeout(() => {
-      switchScreen('screen-loading', 'screen-auth');
-    }, 2500);
+  } catch (e) {
+    console.warn('[PlanetX] Referral sync failed (non-critical):', e);
   }
-})();
+}
 
 // ===================== CONSOLE EASTER EGG =====================
 console.log('%c🪐 PlanetX %c游戏化产品 v3.0 - Supabase Cloud Edition',
