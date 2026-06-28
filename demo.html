@@ -298,7 +298,7 @@
           })
           .catch(function (e) {
             if (e.message !== 'unauthorized' && e.message !== 'quota_or_forbidden')
-              out('out-match', '<p class="error">请求失败：' + e.message + '。请确认 API 已启动且与本页同源（如 http://127.0.0.1:8010/demo.html）</p>');
+              out('out-match', '<p class="error">请求失败：' + e.message + '。请确认网络连接正常，或通过 https://www.genz.ltd/demo.html 访问本页后再试。</p>');
           })
           .then(function () { btn.disabled = false; });
       };
@@ -363,7 +363,7 @@
             el.value = text;
             el.focus();
           }).catch(function () {
-            alert('无法读取剪贴板，请使用 Ctrl+V 粘贴，或通过 http://127.0.0.1:8010/demo.html 访问本页后再试。');
+            alert('无法读取剪贴板，请使用 Ctrl+V 粘贴，或通过 https://www.genz.ltd/demo.html 访问本页后再试。');
           });
         } else {
           alert('当前环境不支持一键粘贴，请使用 Ctrl+V（或 Cmd+V）粘贴。');
