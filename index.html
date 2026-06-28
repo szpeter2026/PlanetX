@@ -779,20 +779,27 @@ body {
 // ===================== SUPABASE INIT (with guards) =====================
 var SUPABASE_URL = 'https://ihuddnluwggbdppheixu.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_O6vccVYBMxJrN_Vq2Td4Nw_2kHNQHu7';
+// Save CDN library BEFORE var supabase overwrites window.supabase
+var _sbLib = (typeof window.supabase !== 'undefined') ? window.supabase : null;
 var supabase = null;
 
 (function initSupabase() {
-  if (typeof window.supabase === 'undefined' || !window.supabase) {
+  if (!_sbLib || typeof _sbLib.createClient !== 'function') {
     console.warn('[PlanetX] Supabase SDK not loaded (CDN blocked?). Running in offline mode.');
     // Create a mock supabase object so the rest of the code doesn't crash
     supabase = {
-      auth: { getSession: function() { return Promise.resolve({ data: { session: null } }); } },
-      from: function() { return { select: function() { return Promise.resolve({ data: null, error: null }); }, insert: function() { return Promise.resolve({}); } }; }
+      auth: {
+        getSession: function() { return Promise.resolve({ data: { session: null } }); },
+        signUp: function() { return Promise.resolve({ data: null, error: { message: 'Supabase 未加载' } }); },
+        signInWithPassword: function() { return Promise.resolve({ data: null, error: { message: 'Supabase 未加载' } }); },
+        signOut: function() { return Promise.resolve({}); }
+      },
+      from: function() { return { select: function() { return Promise.resolve({ data: null, error: null }); }, insert: function() { return Promise.resolve({}); }, upsert: function() { return Promise.resolve({}); } }; }
     };
     return;
   }
   try {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabase = _sbLib.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log('%c[PlanetX] Supabase initialized', 'color:#C8FF50;');
   } catch(e) {
     console.warn('[PlanetX] Supabase init failed:', e);
