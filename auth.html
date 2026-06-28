@@ -76,6 +76,7 @@
     // ===================== SUPABASE INIT =====================
     var SUPABASE_URL = 'https://ihuddnluwggbdppheixu.supabase.co';
     var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlodWRkbmx1d2dnYmRwcGhlaXh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NDcwNDEsImV4cCI6MjA5ODAyMzA0MX0._nd6pJvhMjWoqt4CtBW344UC59sILk31PaMU-NYc8fk';
+    var API_BASE = 'https://api.genz.ltd';
     var _sbLib = (typeof window.supabase !== 'undefined') ? window.supabase : null;
     var supabase = null;
 
@@ -162,7 +163,7 @@
 
       // Step 1: Verify invitation code via Looma API
       try {
-        var verifyRes = await fetch('https://api.genz.ltd/v1/referral/verify', {
+        var verifyRes = await fetch(API_BASE + '/v1/referral/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: inviteCode })
@@ -193,6 +194,24 @@
           return;
         }
         setMsg('register-msg', '注册成功！请查收邮件确认（或直接登录）', false);
+
+        // ── 后台同步（不阻塞主流程）──
+        var user = data.user;
+        if (user) {
+          // 同步用户到 Looma SQLite
+          fetch(API_BASE + '/v1/auth/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ supabase_uid: user.id, email: user.email, tier: 'free' }),
+          }).catch(function() {});
+          // 递增邀请码 use_count
+          fetch(API_BASE + '/v1/referral/use', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: inviteCode }),
+          }).catch(function() {});
+        }
+
         setTimeout(function () { showPanel('login'); }, 1500);
       } catch (err) {
         setMsg('register-msg', '请求失败：' + (err.message || '请确认网络已连接'), true);
