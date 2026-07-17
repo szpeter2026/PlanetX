@@ -495,6 +495,60 @@ body {
 }
 .stat-label { font-size:var(--font-xs); color:var(--mist); margin-top:2px; }
 
+/* ===== Consent Modal (profile_share 合规授权) ===== */
+.consent-overlay {
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.6); z-index:150;
+  display:flex; align-items:center; justify-content:center;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity:0; }
+  to { opacity:1; }
+}
+.consent-dialog {
+  background:var(--card-solid); border:1px solid var(--border);
+  border-radius:16px; padding:24px 20px; max-width:340px; width:90%;
+  text-align:center; animation: consentSlideUp 0.4s ease;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+@keyframes consentSlideUp {
+  from { opacity:0; transform:translateY(20px); }
+  to { opacity:1; transform:translateY(0); }
+}
+.consent-icon { font-size:2.5rem; margin-bottom:8px; }
+.consent-title {
+  font-size:var(--font-lg); font-weight:700; color:var(--text-primary);
+  margin-bottom:4px;
+}
+.consent-scope {
+  font-size:var(--font-xs); color:var(--primary); font-weight:600;
+  margin-bottom:12px; letter-spacing:0.08em;
+}
+.consent-desc {
+  font-size:var(--font-xs); color:var(--mist); line-height:1.7;
+  margin-bottom:20px; text-align:left; white-space:pre-line;
+  background:var(--xp-bar-bg); border-radius:8px; padding:10px 12px;
+}
+.consent-actions {
+  display:flex; gap:8px;
+}
+.consent-btn {
+  flex:1; padding:11px 16px; border-radius:10px;
+  font-size:var(--font-sm); font-weight:700; cursor:pointer;
+  transition:all 0.2s; border:none;
+}
+.consent-decline {
+  background:var(--xp-bar-bg); color:var(--mist);
+}
+.consent-decline:hover { background:rgba(255,255,255,0.08); }
+.consent-agree {
+  background:linear-gradient(135deg, var(--primary), #FF9F5A);
+  color:var(--text-primary); box-shadow: 0 2px 12px rgba(255,123,50,0.25);
+}
+.consent-agree:hover { box-shadow: 0 4px 20px rgba(255,123,50,0.4); }
+
 /* ===== Responsive ===== */
 @media (max-width:375px) {
   .app { padding:12px 8px 24px; gap:14px; }
@@ -516,6 +570,20 @@ body {
   <div class="achievement-icon" id="achIcon">🏆</div>
   <div class="achievement-title" id="achTitle"></div>
   <div class="achievement-desc" id="achDesc"></div>
+</div>
+
+<!-- ===== CONSENT MODAL (profile_share 合规授权) ===== -->
+<div class="consent-overlay" id="consentModal" style="display:none;">
+  <div class="consent-dialog">
+    <div class="consent-icon">🛡️</div>
+    <div class="consent-title">授权分享你的画像</div>
+    <div class="consent-scope" id="consentScope">分享人格分析结果</div>
+    <div class="consent-desc" id="consentDesc"></div>
+    <div class="consent-actions">
+      <button class="consent-btn consent-decline" id="consentDecline">暂不授权</button>
+      <button class="consent-btn consent-agree" id="consentAgree">✅ 同意授权</button>
+    </div>
+  </div>
 </div>
 
 <!-- App -->
@@ -753,6 +821,9 @@ body {
         <button class="btn btn-lime" onclick="shareResult()">
           📡 分享到星际频道
         </button>
+        <button class="btn" style="background:linear-gradient(135deg, var(--purple-soft), rgba(255,123,50,0.08));border:1px solid rgba(173,59,255,0.3);color:#D7B6FF;" onclick="handleProfileShare()">
+          👔 分享给 HR（画像链接）
+        </button>
         <button class="btn btn-primary" onclick="goToHub()">
           🚀 返回母舰 · 继续探险
         </button>
@@ -809,6 +880,15 @@ var API_BASE = (function() {
   return 'https://api.szbolent.cn';
 })();
 var TOKEN_KEY = 'planetx_token';
+
+// ===================== SAAS BASE (auto-region, for HR share URLs) =====================
+var SAAS_BASE = (function() {
+  var hostname = window.location.hostname;
+  if (hostname.indexOf('genz.ltd') !== -1 || hostname.indexOf('vercel.app') !== -1) {
+    return 'https://tspace.genz.ltd';
+  }
+  return 'https://tspace.szbolent.cn';
+})();
 
 function getToken() {
   try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
@@ -994,7 +1074,8 @@ const STATE = {
   achievements: [],
   fleetId: null,
   _refCode: null,
-  _referredBy: null
+  _referredBy: null,
+  profileShareCode: null          // HR 画像分享码
 };
 
 // ===================== AUTH FUNCTIONS =====================
@@ -1874,6 +1955,11 @@ function shareResult() {
         <div class="share-platform-tag">通用版本</div>
       </div>
     </div>
+    <div style="display:flex;justify-content:center;margin-bottom:10px;">
+      <button class="btn btn-sm" style="background:linear-gradient(135deg, var(--purple-soft), rgba(255,123,50,0.08));border:1px solid rgba(173,59,255,0.3);color:#D7B6FF;width:auto;min-width:200px;" onclick="handleProfileShare();event.stopPropagation();">
+        👔 生成 HR 画像链接 · 裂变 C2B
+      </button>
+    </div>
     <div class="share-text-preview" id="shareTextPreview">
       点击上方平台查看专属文案预览
     </div>
@@ -2202,15 +2288,186 @@ async function syncReferralAfterLogin(userId) {
   }
 }
 
+// ===================== PROFILE SHARE (C2B 裂变核心) =====================
+
+/**
+ * Create or retrieve a profile_share referral code via Looma API.
+ * The code points to the user's public personality profile, viewable by HR.
+ * API: POST /v1/referral/create { purpose: "profile_share" }
+ */
+async function createProfileShareCode() {
+  if (!getToken()) {
+    showToast('请先登录后再分享画像给 HR');
+    return null;
+  }
+  // Reuse existing code if already created
+  if (STATE.profileShareCode) return STATE.profileShareCode;
+
+  try {
+    var data = await apiJson('/v1/referral/create', {
+      method: 'POST',
+      body: JSON.stringify({ purpose: 'profile_share' })
+    });
+    STATE.profileShareCode = data.code;
+    console.log('%c🔗 画像分享码已生成: ' + data.code, 'color:#FF7B32;');
+    return data.code;
+  } catch (err) {
+    showToast('生成分享码失败: ' + err.message);
+    console.warn('[PlanetX] profile_share create failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Generate the HR-facing share URL (T-space candidate share page).
+ * Format: https://tspace.genz.ltd/candidate/share/{code}
+ */
+function getHrShareUrl(code) {
+  var c = code || STATE.profileShareCode;
+  if (!c) return SAAS_BASE;
+  return SAAS_BASE.replace(/\/$/, '') + '/candidate/share/' + c;
+}
+
+/**
+ * C2B 裂变主流程: 人格 → 授权 → 生成画像分享码 → 复制 HR 链接
+ * 点击「分享给 HR」按钮时调用
+ */
+async function handleProfileShare() {
+  // 1. 必须先完成人格测试
+  if (!STATE.personalityType) {
+    showToast('请先完成人格测试');
+    return;
+  }
+
+  // 2. 必须先登录
+  if (!getToken()) {
+    showToast('请先登录后再分享画像给 HR');
+    var activeScreen = document.querySelector('.screen.active');
+    if (activeScreen) switchScreen(activeScreen.id, 'screen-auth');
+    return;
+  }
+
+  // 3. 合规授权弹窗
+  var consented = await showProfileShareConsent();
+  if (!consented) return;
+
+  // 4. 调用 API 生成/获取 profile_share code
+  var code = await createProfileShareCode();
+  if (!code) return;
+
+  // 5. 生成 HR 链接
+  var hrUrl = getHrShareUrl(code);
+
+  // 6. 复制到剪贴板
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(hrUrl).then(function() {
+      showToast('👔 HR 画像链接已复制！发送给 HR 一键查看你的人格分析');
+    });
+  } else {
+    // Fallback: show the link for manual copy
+    showProfileShareResult(code, hrUrl);
+  }
+
+  // 7. Sync personality to API if not already synced
+  if (STATE.personalityType) {
+    syncProfileToApi({
+      personality_type: STATE.personalityType.name,
+      personality_detail: JSON.stringify(STATE.personalityType)
+    });
+  }
+
+  // 8. Track share event
+  document.getElementById('stat-shares').textContent =
+    parseInt(document.getElementById('stat-shares').textContent || '0') + 1;
+
+  return code;
+}
+
+/**
+ * Fallback UI: show the generated HR link (when clipboard API unavailable)
+ */
+function showProfileShareResult(code, hrUrl) {
+  // Remove any existing profile-share-result
+  var existing = document.querySelector('.profile-share-result');
+  if (existing) existing.remove();
+
+  var p = STATE.personalityType || { name: '未知', emoji: '👤' };
+  var div = document.createElement('div');
+  div.className = 'profile-share-result';
+  div.innerHTML =
+    '<div style="background:var(--card);border:1px solid rgba(255,123,50,0.3);border-radius:12px;padding:16px;margin-top:12px;text-align:left;">' +
+      '<div style="font-size:var(--font-sm);color:var(--primary);font-weight:700;margin-bottom:8px;">' +
+        '👔 ' + p.emoji + ' ' + p.name + ' · HR 画像链接已生成' +
+      '</div>' +
+      '<div style="background:var(--xp-bar-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;' +
+        'font-size:var(--font-xs);color:var(--mist);word-break:break-all;margin-bottom:8px;">' +
+        hrUrl +
+      '</div>' +
+      '<div style="font-size:var(--font-xs);color:var(--text-quaternary);">' +
+        '分享码: <b style="color:var(--green);letter-spacing:0.15em;">' + code + '</b>' +
+        ' · HR 打开后无需登录即可查看你的画像' +
+      '</div>' +
+      '<div style="font-size:var(--font-xs);color:var(--text-quaternary);margin-top:4px;">' +
+        '🔗 HR 可在 T 空间直接导入候选人' +
+      '</div>' +
+      '<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="navigator.clipboard.writeText(\'' +
+        hrUrl.replace(/'/g, "\\'") + '\').then(function(){showToast(\'📋 已复制！\');})">' +
+        '📋 复制链接' +
+      '</button>' +
+      '<a href="' + SAAS_BASE + '" target="_blank" rel="noopener" style="display:block;margin-top:8px;text-align:center;' +
+        'font-size:var(--font-xs);color:var(--primary);text-decoration:none;font-weight:600;">' +
+        '🏢 打开 T 空间 SaaS →' +
+      '</a>' +
+    '</div>';
+
+  // Insert after the result buttons area
+  var resultCard = document.querySelector('.result-card');
+  if (resultCard) resultCard.appendChild(div);
+}
+
+/**
+ * Consent dialog for profile_share scope.
+ * Returns true if user agrees, false otherwise.
+ */
+function showProfileShareConsent() {
+  return new Promise(function(resolve) {
+    var modal = document.getElementById('consentModal');
+    document.getElementById('consentScope').textContent = '分享人格分析结果';
+    document.getElementById('consentDesc').textContent =
+      '将为你生成一个可公开查看的人格画像链接。HR 通过该链接可以查看你的：\n' +
+      '• 星际人格类型（' + (STATE.personalityType ? STATE.personalityType.emoji + ' ' + STATE.personalityType.name : '未测试') + '）\n' +
+      '• 个性标签与描述\n' +
+      '• 等级与能量值\n\n' +
+      '⚠️ 不含手机号、邮箱等敏感联系方式。';
+    modal.style.display = 'flex';
+
+    document.getElementById('consentAgree').onclick = function() {
+      modal.style.display = 'none';
+      resolve(true);
+    };
+    document.getElementById('consentDecline').onclick = function() {
+      modal.style.display = 'none';
+      resolve(false);
+    };
+    // Close on backdrop click
+    modal.onclick = function(e) {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+        resolve(false);
+      }
+    };
+  });
+}
+
 // ===================== CONSOLE EASTER EGG =====================
-console.log('%c🪐 PlanetX %c游戏化产品 v3.1 - Looma API Edition',
+console.log('%c🪐 PlanetX %c游戏化产品 v3.2 - C2B 裂变版 (海外 profile_share 已接入)',
   'color:#FF7B32;font-size:18px;font-weight:bold;',
   'color:#A1A3B7;');
 console.log('%c身份认同 × 社交裂变 × 情绪陪伴 = 不堆料的产品力',
   'color:#A1A3B7;font-size:12px;');
 console.log('%c🏆 当前成就系统:', 'color:#FFC330;');
-console.log('  Lv.1 星际人格测试 → Lv.2 组建舰队 → Lv.3 星际匹配 → Lv.4 信号传播');
-console.log('%c💡 提示: 完成人格测试解锁组队，3人成团解锁隐藏星图',
+console.log('  Lv.1 星际人格测试 → Lv.2 组建舰队 → Lv.3 星际匹配 → Lv.4 信号传播 → 🆕 Lv.5 C2B HR画像裂变');
+console.log('%c💡 提示: 完成人格测试 → 点击「分享给 HR」→ 生成画像分享码 → C2B 裂变闭环',
   'color:#21EB6C;font-size:11px;');
 console.log('%c🔗 API: ' + API_BASE + ' · 登录用户数据持久化',
   'color:#22c55e;font-size:11px;');
