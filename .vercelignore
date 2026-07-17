@@ -1,20 +1,4 @@
-# Vercel 仅部署 app.genz.ltd 静态 PWA（根目录 index.html + sw.js + public/）
-# 排除大型子项目，避免上传超时与构建失败
-
-tatha/
-zervi-rust/
-jobfirst-claw/
-jobfirst-future/
-Genzltd/
-zervi.test/
-planetx-reports/
-scripts/
-docs/
-*.md
+# GitHub 精简仓专用 — 勿排除 HTML / public / 图标
 .git/
-target/
-node_modules/
-**/__pycache__/
-**/*.pyc
 .env
 .env.*

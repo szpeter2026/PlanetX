@@ -189,7 +189,8 @@ curl -s -X POST https://api.genz.ltd/v1/auth/register \
 
 | 现象 | 处理 |
 |------|------|
-| Vercel 部署超时 / 体积过大 | 确认 `.vercelignore` 已提交，排除 `tatha/`、`zervi-rust/` |
+| **部署成功但全站 404** | **Root Directory 必须留空**（仓库根已有 `index.html`，不要填 `PlanetX`）；**Output Directory 留空**；Framework = Other；Redeploy |
+| Vercel 部署超时 / 体积过大 | 确认 `.vercelignore` 未误排除 `index.html` / `public/`（精简仓用最小 ignore） |
 | 404 on `/manifest.json` | 确认 `public/manifest.json` 存在；或根目录有 `manifest.json` |
 | SW 不更新 | `sw.js` 已设 `Cache-Control: no-cache`；用户需关闭再开 PWA |
 | 注册失败 | 检查 Supabase Redirect URLs |
