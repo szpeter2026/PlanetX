@@ -1,7 +1,8 @@
 # app.genz.ltd 部署指南
 
 > **产物：** `PlanetX/` 根目录静态 PWA（`index.html` + `sw.js` + `public/`）  
-> **API：** 当前页使用 **Supabase** 直连；`api.genz.ltd` 为 Looma 后端（CORS 已预留）  
+> **API：** 统一走 **Looma API**（`/v1/auth/*` + `/v1/game/*`），海外 `api.genz.ltd` / 大陆 `api.szbolent.cn`，按 hostname 自动切换  
+> **Supabase：** 已从主流程移除。Genzer 线 Supabase（demoppi | Genzers）独立演进，不受影响  
 > **更新：** 2026-07-17  
 
 ---
@@ -44,10 +45,16 @@ PlanetX/
 
 > ⚠️ 不要选 Vite/Next.js；这是纯静态站点，无 build 步骤。
 
-### 1.3 环境变量（可选）
+### 1.3 环境变量
 
-当前 `index.html` 内嵌 Supabase URL/Key，**Vercel 环境变量可暂不配**。  
-若日后改为构建注入，再加 `VITE_*`。
+无需配置。`index.html` 纯静态，按 `window.location.hostname` 自动选 API：
+
+| hostname 匹配 | 指向 API |
+|---|---|
+| `genz.ltd` / `vercel.app` | `https://api.genz.ltd`（海外 Vultr） |
+| 其他（szbolent / IP） | `https://api.szbolent.cn`（大陆） |
+
+同一套 JWT + 合约，数据按区域隔离。
 
 ### 1.4 无 GitHub 时：CLI 部署
 
@@ -131,18 +138,28 @@ curl -s -X OPTIONS https://api.genz.ltd/v1/auth/register \
 
 ---
 
-## 4. Supabase（当前页真正用的「API」）
+## 4. Looma API（统一后端）
 
-`index.html` 直连 Supabase，**不是** `api.genz.ltd`。
+`index.html` 直连 Looma API，使用 JWT token 认证（`localStorage.planetx_token`）。
 
-在 [Supabase Dashboard](https://supabase.com/dashboard) → Project → **Authentication** → **URL Configuration**：
+### 用户生命周期
 
-| 项 | 添加 |
-|----|------|
-| **Site URL** | `https://app.genz.ltd` |
-| **Redirect URLs** | `https://app.genz.ltd/**` |
+| 操作 | 端点 | method |
+|------|------|--------|
+| 注册 | `/v1/auth/register` | POST |
+| 登录 | `/v1/auth/login` | POST |
+| 人格测试 | `/v1/game/personality` | POST |
+| 任务列表 | `/v1/game/tasks` | GET |
+| 舰队 | `/v1/game/fleet` | GET/POST |
 
-否则注册/登录在正式域可能失败。
+### 身份一致性边界
+
+| 场景 | 一致性 |
+|------|--------|
+| 同一 API 域内（如都在 `api.genz.ltd`） | ✅ 同一账号、同一份进度 |
+| 海外注册 ↔ 大陆登录 | ⚠️ 暂不同步（各自 SQLite，数据按区域隔离） |
+
+> 若后续要「一个账号全球通用」，加 DB 同步或统一 PostgreSQL 即可，前端不用改。
 
 ---
 
@@ -150,7 +167,7 @@ curl -s -X OPTIONS https://api.genz.ltd/v1/auth/register \
 
 ### 5.1 静态 + PWA
 
-- [ ] `https://app.genz.ltd` 打开人格测试页  
+- [ ] `https://app.genz.ltd` 打开首页  
 - [ ] Chrome DevTools → **Application** → Manifest 无报错  
 - [ ] Service Worker 状态 **activated**  
 - [ ] 地址栏或菜单出现 **安装应用 / 添加到主屏幕**  
@@ -158,29 +175,19 @@ curl -s -X OPTIONS https://api.genz.ltd/v1/auth/register \
 
 **iOS Safari：** 分享 → **添加到主屏幕**
 
-### 5.2 Supabase 联调
+### 5.2 Looma API 闭环测试
 
-- [ ] 注册新邮箱账号  
-- [ ] 登录 / 登出  
-- [ ] 完成 8 题人格测试并看到结果  
-- [ ] Console 无 `[PlanetX] Supabase SDK not loaded`  
+- [ ] 注册新账号（`/v1/auth/register`）  
+- [ ] 登录 → 获取 `planetx_token` 存入 localStorage  
+- [ ] 完成人格测试并看到结果  
+- [ ] 刷新页面 → 仍保持登录状态（Token 持久化）  
+- [ ] Console 无 `[Auth] Supabase` 相关日志（已移除）  
 
-### 5.3 api.genz.ltd（预留 / 未来 Looma 对接）
-
-当前静态页**不会**请求 Looma。可选冒烟：
+### 5.3 API 健康检查
 
 ```bash
 curl -s https://api.genz.ltd/health
-# 期望 JSON 含 ok / healthy 类字段
-```
-
-日后若 `index.html` 改调 Looma，再测：
-
-```bash
-curl -s -X POST https://api.genz.ltd/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -H "Origin: https://app.genz.ltd" \
-  -d '{"email":"test@example.com","password":"Test1234!","username":"testuser"}'
+# 期望 JSON 含 ok / healthy
 ```
 
 ---
@@ -193,8 +200,9 @@ curl -s -X POST https://api.genz.ltd/v1/auth/register \
 | Vercel 部署超时 / 体积过大 | 确认 `.vercelignore` 未误排除 `index.html` / `public/`（精简仓用最小 ignore） |
 | 404 on `/manifest.json` | 确认 `public/manifest.json` 存在；或根目录有 `manifest.json` |
 | SW 不更新 | `sw.js` 已设 `Cache-Control: no-cache`；用户需关闭再开 PWA |
-| 注册失败 | 检查 Supabase Redirect URLs |
-| API CORS 红字 | 确认 Vultr `.env` 已含 `app.genz.ltd` 并重启容器 |
+| 注册/登录失败 | 检查 `api.genz.ltd` 健康状态；CORS 是否含 `app.genz.ltd` |
+| API CORS 红字 | 确认 Vultr `.env` 的 `CORS_ORIGINS` 已含 `app.genz.ltd` 并重启容器 |
+| 大陆访问走错 API | 确认 `index.html` 的 `API_BASE` 自动切换逻辑按 hostname 正确匹配 |
 
 ---
 

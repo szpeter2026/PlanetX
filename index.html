@@ -774,8 +774,16 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <script>
-// ===================== LOOMA API (api.genz.ltd) =====================
-var API_BASE = 'https://api.genz.ltd';
+// ===================== LOOMA API (auto-region) =====================
+// 按 hostname 自动选海外/大陆 API；同一套 JWT + 合约，数据按区域隔离
+var API_BASE = (function() {
+  var hostname = window.location.hostname;
+  if (hostname.indexOf('genz.ltd') !== -1 || hostname.indexOf('vercel.app') !== -1) {
+    return 'https://api.genz.ltd';
+  }
+  // 大陆 / szbolent / IP 直连 → 大陆 API
+  return 'https://api.szbolent.cn';
+})();
 var TOKEN_KEY = 'planetx_token';
 
 function getToken() {

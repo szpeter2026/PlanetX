@@ -3,223 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>登录 / 注册 - Tatha</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <title>跳转中 - PlanetX</title>
   <style>
-    :root { --bg: #0f0f12; --card: #1a1a20; --text: #e4e4e7; --muted: #71717a; --accent: #a78bfa; --border: #27272a; }
-    * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 2rem 1.5rem; line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .auth-box { width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
-    .auth-box h1 { font-size: 1.25rem; margin: 0 0 1rem; }
-    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-    .tabs a { padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; color: var(--muted); background: transparent; }
-    .tabs a.active { background: var(--accent); color: #fff; }
-    .tabs a:hover:not(.active) { background: var(--border); color: var(--text); }
-    label { display: block; font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.25rem; margin-top: 0.75rem; }
-    input[type="email"], input[type="password"], input[type="text"] {
-      width: 100%; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border);
-      border-radius: 6px; color: var(--text); font-size: 0.875rem;
+    :root { --bg: #080810; --lime: #C8FF50; --purple: #6B3FA0; --mist: #B8B8C8; }
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      font-family: 'PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+      background: var(--bg); color: #E8E8F0; min-height:100vh;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; gap:20px; padding:2rem;
     }
-    .btn { width: 100%; padding: 0.6rem 1rem; margin-top: 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; background: var(--accent); color: #fff; }
-    .btn:hover { filter: brightness(1.1); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .panel { display: none; }
-    .panel.active { display: block; }
-    .msg { font-size: 0.8125rem; margin-top: 0.5rem; }
-    .msg.error { color: #f87171; }
-    .msg.ok { color: #22c55e; }
-    .back { margin-top: 1rem; text-align: center; }
-    .back a { color: var(--muted); font-size: 0.875rem; }
-    .back a:hover { color: var(--accent); }
+    .logo { font-size:2.5rem; font-weight:900; color:var(--lime); letter-spacing:0.06em; }
+    .logo .x { display:inline-block; color:var(--purple); }
+    .subtitle { font-size:0.85rem; color:var(--mist); }
+    .btn {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:12px 28px; border-radius:24px; font-size:0.9rem; font-weight:700;
+      cursor:pointer; text-decoration:none; border:none;
+      background:linear-gradient(135deg, var(--purple), #8B5CF6);
+      color:#fff; box-shadow: 0 4px 20px rgba(107,63,160,0.4);
+      transition:all 0.3s;
+    }
+    .btn:hover { transform:translateY(-1px); box-shadow: 0 6px 30px rgba(107,63,160,0.6); }
+    .footnote { font-size:0.7rem; color:var(--mist); opacity:0.5; margin-top:8px; }
   </style>
+  <meta http-equiv="refresh" content="2;url=index.html">
 </head>
 <body>
-  <div class="auth-box">
-    <h1>登录 / 注册 Tatha</h1>
-    <div class="tabs">
-      <a href="#" id="tab-login" class="active">登录</a>
-      <a href="#" id="tab-register">注册</a>
-    </div>
-
-    <div id="panel-login" class="panel active">
-      <form id="form-login">
-        <label>邮箱</label>
-        <input type="email" id="login-email" placeholder="your@email.com" required />
-        <label>密码</label>
-        <input type="password" id="login-password" placeholder="密码" required />
-        <div id="login-msg" class="msg"></div>
-        <button type="submit" class="btn" id="btn-login">登录</button>
-      </form>
-    </div>
-
-    <div id="panel-register" class="panel">
-      <form id="form-register">
-        <label>邮箱</label>
-        <input type="email" id="register-email" placeholder="your@email.com" required />
-        <label>密码</label>
-        <input type="password" id="register-password" placeholder="至少 6 位" required minlength="6" />
-        <label>确认密码</label>
-        <input type="password" id="register-password2" placeholder="再次输入密码" required />
-        <label>邀请码</label>
-        <input type="text" id="register-invite" placeholder="输入邀请码" required />
-        <div id="register-msg" class="msg"></div>
-        <button type="submit" class="btn" id="btn-register">注册</button>
-      </form>
-    </div>
-
-    <div class="back">
-      <a href="index.html">返回首页</a> · <a href="demo.html">直接进入匹配体验</a>
-    </div>
+  <div class="logo">Planet<span class="x">X</span></div>
+  <div class="subtitle">
+    登录 / 注册已迁移至首页 Looma API<br>
+    Supabase 依赖已移除 — 正在跳转…
   </div>
-
+  <a class="btn" href="index.html">🚀 前往 PlanetX 首页</a>
+  <div class="footnote">
+    自动跳转中（2 秒）· 若未跳转请点击上方按钮
+  </div>
   <script>
-    // ===================== SUPABASE INIT =====================
-    var SUPABASE_URL = 'https://ihuddnluwggbdppheixu.supabase.co';
-    var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlodWRkbmx1d2dnYmRwcGhlaXh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NDcwNDEsImV4cCI6MjA5ODAyMzA0MX0._nd6pJvhMjWoqt4CtBW344UC59sILk31PaMU-NYc8fk';
-    var API_BASE = 'https://api.genz.ltd';
-    var _sbLib = (typeof window.supabase !== 'undefined') ? window.supabase : null;
-    var supabase = null;
-
-    (function initSupabase() {
-      if (!_sbLib || typeof _sbLib.createClient !== 'function') {
-        console.warn('[Auth] Supabase SDK not loaded (CDN blocked?).');
-        supabase = {
-          auth: {
-            signUp: function() { return Promise.resolve({ data: null, error: { message: 'Supabase 未加载' } }); },
-            signInWithPassword: function() { return Promise.resolve({ data: null, error: { message: 'Supabase 未加载' } }); },
-            getSession: function() { return Promise.resolve({ data: { session: null } }); }
-          }
-        };
-        return;
-      }
-      try {
-        supabase = _sbLib.createClient(SUPABASE_URL, SUPABASE_KEY);
-        console.log('%c[Auth] Supabase initialized', 'color:#C8FF50;');
-      } catch(e) {
-        console.warn('[Auth] Supabase init failed:', e);
-      }
-    })();
-
-    // ===================== UI HELPERS =====================
-    function showPanel(name) {
-      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
-      document.querySelectorAll('.tabs a').forEach(function (a) { a.classList.remove('active'); });
-      var panel = document.getElementById('panel-' + name);
-      var tab = document.getElementById('tab-' + name);
-      if (panel) panel.classList.add('active');
-      if (tab) tab.classList.add('active');
-    }
-    document.getElementById('tab-login').onclick = function (e) { e.preventDefault(); showPanel('login'); };
-    document.getElementById('tab-register').onclick = function (e) { e.preventDefault(); showPanel('register'); };
-
-    function setMsg(id, text, isError) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = text || '';
-      el.className = 'msg' + (isError ? ' error' : ' ok');
-    }
-
-    // ===================== LOGIN =====================
-    document.getElementById('form-login').onsubmit = async function (e) {
-      e.preventDefault();
-      var email = document.getElementById('login-email').value.trim();
-      var password = document.getElementById('login-password').value;
-      var btn = document.getElementById('btn-login');
-      setMsg('login-msg', '');
-      btn.disabled = true;
-
-      try {
-        var { data, error } = await supabase.auth.signInWithPassword({ email: email, password: password });
-        if (error) {
-          setMsg('login-msg', error.message || '登录失败', true);
-          btn.disabled = false;
-          return;
-        }
-        setMsg('login-msg', '登录成功，正在跳转...', false);
-        setTimeout(function () { window.location.href = 'index.html'; }, 800);
-      } catch (err) {
-        setMsg('login-msg', '请求失败：' + (err.message || '请确认网络已连接'), true);
-        btn.disabled = false;
-      }
-    };
-
-    // ===================== REGISTER =====================
-    document.getElementById('form-register').onsubmit = async function (e) {
-      e.preventDefault();
-      var email = document.getElementById('register-email').value.trim();
-      var password = document.getElementById('register-password').value;
-      var password2 = document.getElementById('register-password2').value;
-      var inviteCode = document.getElementById('register-invite').value.trim();
-      var btn = document.getElementById('btn-register');
-      setMsg('register-msg', '');
-
-      if (password !== password2) {
-        setMsg('register-msg', '两次密码不一致', true);
-        return;
-      }
-
-      btn.disabled = true;
-      setMsg('register-msg', '验证邀请码...', false);
-
-      // Step 1: Verify invitation code via Looma API
-      try {
-        var verifyRes = await fetch(API_BASE + '/v1/referral/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: inviteCode })
-        });
-        var verifyData = await verifyRes.json();
-        if (!verifyData.ok && !verifyData.valid) {
-          setMsg('register-msg', verifyData.error || verifyData.message || '邀请码无效', true);
-          btn.disabled = false;
-          return;
-        }
-      } catch (err) {
-        // If verification endpoint doesn't exist, allow known codes
-        var knownCodes = ['SZPETER2006'];
-        if (knownCodes.indexOf(inviteCode) === -1) {
-          setMsg('register-msg', '邀请码验证服务暂不可用，请稍后再试', true);
-          btn.disabled = false;
-          return;
-        }
-      }
-
-      // Step 2: Supabase Auth signUp
-      setMsg('register-msg', '创建账号...', false);
-      try {
-        var { data, error } = await supabase.auth.signUp({ email: email, password: password });
-        if (error) {
-          setMsg('register-msg', error.message || '注册失败', true);
-          btn.disabled = false;
-          return;
-        }
-        setMsg('register-msg', '注册成功！请查收邮件确认（或直接登录）', false);
-
-        // ── 后台同步（不阻塞主流程）──
-        var user = data.user;
-        if (user) {
-          // 同步用户到 Looma SQLite
-          fetch(API_BASE + '/v1/auth/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ supabase_uid: user.id, email: user.email, tier: 'free' }),
-          }).catch(function() {});
-          // 递增邀请码 use_count
-          fetch(API_BASE + '/v1/referral/use', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: inviteCode }),
-          }).catch(function() {});
-        }
-
-        setTimeout(function () { showPanel('login'); }, 1500);
-      } catch (err) {
-        setMsg('register-msg', '请求失败：' + (err.message || '请确认网络已连接'), true);
-        btn.disabled = false;
-      }
-    };
-
-    if (window.location.hash === '#register') showPanel('register');
+    console.log('%c[auth.html] Supabase deprecated — redirecting to index.html (Looma API)', 'color:#C8FF50;');
   </script>
 </body>
 </html>
