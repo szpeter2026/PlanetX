@@ -783,7 +783,7 @@ async function init() {
 
   // Test backend connectivity
   try {
-    const resp = await fetch(S.apiBase + '/v1/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
+    const resp = await fetch(S.apiBase + '/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
     if (resp.ok) {
       S.apiConnected = true;
       setStatus('在线 · DeepSeek');
