@@ -393,7 +393,7 @@ body {
 }
 
 /* ===== Share Panel (multi-platform) ===== */
-.share-panel {
+.share-panel, .mission-share-panel {
   background:var(--card); border:1px solid var(--border);
   border-radius:16px; padding:16px; margin-top:12px;
   animation: screenIn 0.3s ease;
@@ -601,7 +601,7 @@ body {
         </div>
 
         <!-- Mission 2: Team Up -->
-        <div class="mission-card locked" id="mission-team">
+        <div class="mission-card locked" id="mission-team" onclick="startTeamMission()">
           <div class="mission-icon">🤝</div>
           <div class="mission-info">
             <div class="mission-name">组建3人舰队</div>
@@ -611,7 +611,7 @@ body {
         </div>
 
         <!-- Mission 3: First Match -->
-        <div class="mission-card locked" id="mission-match">
+        <div class="mission-card locked" id="mission-match" onclick="startMatchMission()">
           <div class="mission-icon">🎯</div>
           <div class="mission-info">
             <div class="mission-name">首次星际匹配</div>
@@ -621,7 +621,7 @@ body {
         </div>
 
         <!-- Mission 4: Share -->
-        <div class="mission-card locked" id="mission-share">
+        <div class="mission-card locked" id="mission-share" onclick="startShareMission()">
           <div class="mission-icon">📡</div>
           <div class="mission-info">
             <div class="mission-name">发送星际信号</div>
@@ -866,12 +866,62 @@ function applyGameProfile(profile) {
   if (STATE.missionsCompleted.includes('team')) {
     document.getElementById('mission-match').classList.remove('locked');
     document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
+    document.getElementById('mission-team').querySelector('.mission-status').textContent = '已完成';
+    document.getElementById('mission-team').querySelector('.mission-status').className = 'mission-status status-done';
+  }
+  if (STATE.missionsCompleted.includes('match')) {
+    document.getElementById('mission-share').classList.remove('locked');
+    document.getElementById('mission-share').querySelector('.mission-status').textContent = '待完成';
+    document.getElementById('mission-match').querySelector('.mission-status').textContent = '已完成';
+    document.getElementById('mission-match').querySelector('.mission-status').className = 'mission-status status-done';
   }
   if (STATE.missionsCompleted.includes('share')) {
     document.getElementById('mission-share').classList.remove('locked');
     document.getElementById('mission-share').querySelector('.mission-status').className = 'mission-status status-done';
+    document.getElementById('mission-share').querySelector('.mission-status').textContent = '已完成';
   }
+
+  // ── localStorage fallback: restore progress not yet synced to API ──
+  restoreMissionsFromLocal();
+  restoreTeamFromLocal();
+  // Re-apply chain unlock after restore
+  _applyMissionChain();
+
   updateHub();
+}
+
+// Re-evaluate mission chain based on STATE.missionsCompleted
+function _applyMissionChain() {
+  if (STATE.missionsCompleted.includes('personality')) {
+    var teamEl = document.getElementById('mission-team');
+    teamEl.classList.remove('locked');
+    if (!STATE.missionsCompleted.includes('team')) {
+      teamEl.querySelector('.mission-status').textContent = '待组队';
+      teamEl.querySelector('.mission-status').className = 'mission-status status-todo';
+    }
+    document.getElementById('status-personality').textContent = '已完成';
+    document.getElementById('status-personality').className = 'mission-status status-done';
+  }
+  if (STATE.missionsCompleted.includes('team')) {
+    var matchEl = document.getElementById('mission-match');
+    matchEl.classList.remove('locked');
+    matchEl.querySelector('.mission-status').textContent = STATE.missionsCompleted.includes('match') ? '已完成' : '待完成';
+    matchEl.querySelector('.mission-status').className = STATE.missionsCompleted.includes('match') ? 'mission-status status-done' : 'mission-status status-todo';
+    document.getElementById('mission-team').querySelector('.mission-status').textContent = '已完成';
+    document.getElementById('mission-team').querySelector('.mission-status').className = 'mission-status status-done';
+  }
+  if (STATE.missionsCompleted.includes('match')) {
+    var shareEl = document.getElementById('mission-share');
+    shareEl.classList.remove('locked');
+    shareEl.querySelector('.mission-status').textContent = STATE.missionsCompleted.includes('share') ? '已完成' : '待完成';
+    shareEl.querySelector('.mission-status').className = STATE.missionsCompleted.includes('share') ? 'mission-status status-done' : 'mission-status status-todo';
+    document.getElementById('mission-match').querySelector('.mission-status').textContent = '已完成';
+    document.getElementById('mission-match').querySelector('.mission-status').className = 'mission-status status-done';
+  }
+  if (STATE.missionsCompleted.includes('share')) {
+    document.getElementById('mission-share').querySelector('.mission-status').textContent = '已完成';
+    document.getElementById('mission-share').querySelector('.mission-status').className = 'mission-status status-done';
+  }
 }
 
 async function syncProfileToApi(payload) {
@@ -1345,33 +1395,220 @@ function completeMission(missionId) {
   if (STATE.missionsCompleted.includes(missionId)) return;
   STATE.missionsCompleted.push(missionId);
   document.getElementById('stat-tests').textContent = STATE.missionsCompleted.length;
+  persistMissions();
+}
+
+function persistMissions() {
+  try { localStorage.setItem('planetx_missions', JSON.stringify(STATE.missionsCompleted)); } catch(e) {}
+}
+function restoreMissionsFromLocal() {
+  try {
+    var saved = localStorage.getItem('planetx_missions');
+    if (saved) {
+      var arr = JSON.parse(saved);
+      if (Array.isArray(arr)) arr.forEach(function(m) { if (!STATE.missionsCompleted.includes(m)) STATE.missionsCompleted.push(m); });
+    }
+  } catch(e) {}
+}
+// Also persist team state so refresh doesn't lose it
+function persistTeamState() {
+  try {
+    localStorage.setItem('planetx_team', JSON.stringify({
+      fleetId: STATE.fleetId,
+      teamSize: STATE.teamSize,
+      teamCode: document.getElementById('teamCode').textContent.replace('邀请码：',''),
+      teamName: document.getElementById('teamName').textContent
+    }));
+  } catch(e) {}
+}
+function restoreTeamFromLocal() {
+  try {
+    var saved = localStorage.getItem('planetx_team');
+    if (saved) {
+      var t = JSON.parse(saved);
+      if (t.fleetId) STATE.fleetId = t.fleetId;
+      if (t.teamSize) {
+        STATE.teamSize = t.teamSize;
+        document.getElementById('stat-teammates').textContent = STATE.teamSize;
+        for (var i = 0; i < Math.min(t.teamSize, 2); i++) fillMemberSlot(i);
+        document.getElementById('teamName').textContent = t.teamName || '星际舰队 · ' + (t.teamCode || '');
+        document.getElementById('teamName').style.display = 'block';
+        document.getElementById('teamCode').textContent = '邀请码：' + (t.teamCode || '');
+        document.getElementById('teamCode').style.display = 'inline-block';
+      }
+    }
+  } catch(e) {}
 }
 
 // ===================== TEAM SYSTEM =====================
 function simulateInvite() {
-  const code = 'PX-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  var code = 'PX-' + Math.random().toString(36).substring(2, 8).toUpperCase();
   document.getElementById('teamName').textContent = '星际舰队 · ' + code;
   document.getElementById('teamName').style.display = 'block';
   document.getElementById('teamCode').textContent = '邀请码：' + code;
   document.getElementById('teamCode').style.display = 'inline-block';
-  
-  // Simulate team filling
+  STATE.fleetId = code;
+  persistTeamState();
+
+  // Simulate team filling — mock 2 members joining sequentially
   if (STATE.teamSize < 2) {
-    setTimeout(() => {
-      STATE.teamSize++;
-      fillMemberSlot(STATE.teamSize);
-      document.getElementById('stat-teammates').textContent = STATE.teamSize;
-      showToast('👥 新船员加入舰队！');
-      
-      if (STATE.teamSize >= 2) {
-        completeMission('team');
-        addXP(80);
-        document.getElementById('mission-match').classList.remove('locked');
-        document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
-        showAchievement('🤝 舰队集结完毕！', '3人成团 · 隐藏星图已解锁');
-      }
-    }, 1500);
+    _doMockTeamFill(0);
   }
+}
+
+function _doMockTeamFill(slot) {
+  if (slot >= 2) return;
+  setTimeout(function() {
+    STATE.teamSize++;
+    fillMemberSlot(STATE.teamSize - 1);
+    document.getElementById('stat-teammates').textContent = STATE.teamSize;
+    persistTeamState();
+    showToast('👥 新船员加入舰队！(' + STATE.teamSize + '/3)');
+
+    if (STATE.teamSize >= 2) {
+      completeMission('team');
+      addXP(80);
+      document.getElementById('mission-match').classList.remove('locked');
+      document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
+      document.getElementById('status-mission-team').textContent = '已完成';
+      document.getElementById('status-mission-team').className = 'mission-status status-done';
+      showAchievement('🤝 舰队集结完毕！', '3人成团 · 隐藏星图已解锁');
+    }
+    _doMockTeamFill(slot + 1);
+  }, 1200);
+}
+
+// ===================== MISSION HANDLERS =====================
+
+// Mission 2: 组建舰队 — click from mission card
+function startTeamMission() {
+  var missionEl = document.getElementById('mission-team');
+  if (missionEl.classList.contains('locked')) {
+    showToast('🔒 请先完成人格测试');
+    return;
+  }
+  if (STATE.missionsCompleted.includes('team')) {
+    showToast('✅ 舰队已完成组建');
+    return;
+  }
+  // Update status
+  var statusEl = document.getElementById('status-mission-team');
+  if (!statusEl) {
+    statusEl = missionEl.querySelector('.mission-status');
+    statusEl.id = 'status-mission-team';
+  }
+  statusEl.textContent = '组队中...';
+  statusEl.className = 'mission-status status-todo';
+  showToast('🤝 正在集结舰队...');
+  simulateInvite();
+}
+
+// Mission 3: 星际匹配 — mock match result
+function startMatchMission() {
+  var missionEl = document.getElementById('mission-match');
+  if (missionEl.classList.contains('locked')) {
+    showToast('🔒 请先完成舰队组建');
+    return;
+  }
+  if (STATE.missionsCompleted.includes('match')) {
+    showToast('✅ 已完成星际匹配');
+    return;
+  }
+
+  // Mock match result
+  var matchTypes = [
+    { role: '星际架构师', emoji: '🏗️', compat: '92%', desc: '你的逻辑架构与TA的创意引擎完美互补' },
+    { role: '银河领航员', emoji: '🧭', compat: '88%', desc: 'TA的视野为你打开新的星际航线' },
+    { role: '深空探险家', emoji: '🚀', compat: '85%', desc: '你们的冒险精神将共同探索未知星域' }
+  ];
+  var match = matchTypes[Math.floor(Math.random() * matchTypes.length)];
+
+  var statusEl = missionEl.querySelector('.mission-status');
+  statusEl.textContent = '匹配中...';
+  statusEl.className = 'mission-status status-todo';
+  showToast('🎯 星际信号扫描中...');
+
+  setTimeout(function() {
+    completeMission('match');
+    addXP(100);
+    statusEl.textContent = '已完成';
+    statusEl.className = 'mission-status status-done';
+    document.getElementById('mission-share').classList.remove('locked');
+    document.getElementById('mission-share').querySelector('.mission-status').textContent = '待完成';
+    showAchievement(
+      '🎯 匹配成功！',
+      '你与 ' + match.emoji + ' ' + match.role + ' 匹配度 ' + match.compat + ' · ' + match.desc
+    );
+    // Also sync to API (best-effort)
+    if (STATE.user && STATE.user.email) {
+      syncMissionToApi('match', 100);
+    }
+  }, 1800);
+}
+
+// Mission 4: 分享 — open share panel
+function startShareMission() {
+  var missionEl = document.getElementById('mission-share');
+  if (missionEl.classList.contains('locked')) {
+    showToast('🔒 请先完成星际匹配');
+    return;
+  }
+  if (STATE.missionsCompleted.includes('share')) {
+    showToast('✅ 已发送星际信号');
+    return;
+  }
+
+  var p = STATE.personalityType;
+  if (!p) {
+    showToast('请先完成人格测试');
+    return;
+  }
+
+  // Build a share panel inline near the mission area
+  var existingPanel = document.querySelector('.mission-share-panel');
+  if (existingPanel) { existingPanel.remove(); return; }
+
+  var inviteUrl = getInviteLink();
+  var shareText = '🪐 我的 PlanetX 星际身份：「' + p.name + '」' + p.emoji + ' · ' + p.tagline + ' · 扫码加入我的舰队一起探险！';
+  var shareUrl = inviteUrl;
+
+  var panel = document.createElement('div');
+  panel.className = 'mission-share-panel';
+  panel.innerHTML = '<div class="share-panel-title">📡 选择星际频道发送信号</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">' +
+      '<button class="btn btn-outline btn-sm" id="btn-share-copy" style="flex:1;min-width:100px;">📋 复制链接</button>' +
+      '<button class="btn btn-outline btn-sm" id="btn-share-native" style="flex:1;min-width:100px;">📤 系统分享</button>' +
+      '<button class="btn btn-lime btn-sm" id="btn-share-done" style="width:100%;margin-top:8px;">✅ 已完成发送 · 领取奖励</button>' +
+    '</div>';
+
+  missionEl.parentNode.insertBefore(panel, missionEl.nextSibling);
+
+  panel.querySelector('#btn-share-copy').onclick = function() {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareText + ' ' + shareUrl).then(function() {
+        showToast('📋 链接已复制！发送给好友');
+      });
+    }
+  };
+  panel.querySelector('#btn-share-native').onclick = function() {
+    if (navigator.share) {
+      navigator.share({ title: 'PlanetX · 星际人格测试', text: shareText, url: shareUrl }).catch(function(){});
+    } else {
+      showToast('📋 请使用「复制链接」按钮');
+    }
+  };
+  panel.querySelector('#btn-share-done').onclick = function() {
+    completeMission('share');
+    addXP(30);
+    document.getElementById('stat-shares').textContent = parseInt(document.getElementById('stat-shares').textContent || '0') + 1;
+    missionEl.querySelector('.mission-status').textContent = '已完成';
+    missionEl.querySelector('.mission-status').className = 'mission-status status-done';
+    panel.remove();
+    showAchievement('📡 信号已发送！', '你的星际身份已传播到宇宙 · +30 XP');
+    if (STATE.user && STATE.user.email) {
+      syncMissionToApi('share', 30);
+    }
+  };
 }
 
 function fillMemberSlot(slot) {
