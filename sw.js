@@ -1,5 +1,5 @@
 // PlanetX Service Worker — M0 offline + cache
-var CACHE_NAME = 'planetx-v1';
+var CACHE_NAME = 'planetx-v2';
 var ASSETS = [
   '/',
   '/index.html',
