@@ -37,7 +37,6 @@
 <meta name="theme-color" content="#080810">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 /* ===== CSS Variables: 游戏化色系 ===== */
 :root {
@@ -509,25 +508,6 @@ body {
     </div>
   </div>
 
-  <!-- ===== BRUTE-FORCE SAFETY NET: always past loading in 4s ===== -->
-  <script>
-    setTimeout(function() {
-      var el = document.getElementById('screen-loading');
-      if (el && el.style.display !== 'none' && !el.classList.contains('force-hidden')) {
-        // Try switchScreen first
-        if (typeof switchScreen === 'function') {
-          try { switchScreen('screen-loading', 'screen-auth'); } catch(e) {}
-        }
-        // BRUTE FORCE: hide loading, show auth
-        el.style.display = 'none';
-        el.classList.add('force-hidden');
-        var auth = document.getElementById('screen-auth');
-        if (auth) auth.style.display = 'block';
-        console.log('%c[PlanetX] Brute-force safety net triggered', 'color:orange;');
-      }
-    }, 4000);
-  </script>
-
   <!-- ===== SCREEN: Onboarding - Character Select ===== -->
   <div class="screen" id="screen-onboarding">
     <div class="header">
@@ -770,7 +750,7 @@ body {
       </div>
       <div>
         <label style="font-size:var(--font-xs);color:var(--mist);display:block;margin-bottom:4px;">🔐 密码</label>
-        <input type="password" id="authPassword" placeholder="至少6位" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:#E8E8F0;font-size:var(--font-md);">
+        <input type="password" id="authPassword" placeholder="至少8位" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:#E8E8F0;font-size:var(--font-md);">
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-primary" onclick="handleSignIn()" style="flex:1;">🚀 登录</button>
@@ -794,35 +774,129 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <script>
-// ===================== SUPABASE INIT (with guards) =====================
-var SUPABASE_URL = 'https://ihuddnluwggbdppheixu.supabase.co';
-var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlodWRkbmx1d2dnYmRwcGhlaXh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NDcwNDEsImV4cCI6MjA5ODAyMzA0MX0._nd6pJvhMjWoqt4CtBW344UC59sILk31PaMU-NYc8fk';
-// Save CDN library BEFORE var supabase overwrites window.supabase
-var _sbLib = (typeof window.supabase !== 'undefined') ? window.supabase : null;
-var supabase = null;
+// ===================== LOOMA API (api.genz.ltd) =====================
+var API_BASE = 'https://api.genz.ltd';
+var TOKEN_KEY = 'planetx_token';
 
-(function initSupabase() {
-  if (!_sbLib || typeof _sbLib.createClient !== 'function') {
-    console.warn('[PlanetX] Supabase SDK not loaded (CDN blocked?). Running in offline mode.');
-    // Create a mock supabase object so the rest of the code doesn't crash
-    supabase = {
-      auth: {
-        getSession: function() { return Promise.resolve({ data: { session: null } }); },
-        signUp: function() { return Promise.resolve({ data: null, error: { message: 'Supabase 未加载' } }); },
-        signInWithPassword: function() { return Promise.resolve({ data: null, error: { message: 'Supabase 未加载' } }); },
-        signOut: function() { return Promise.resolve({}); }
-      },
-      from: function() { return { select: function() { return Promise.resolve({ data: null, error: null }); }, insert: function() { return Promise.resolve({}); }, upsert: function() { return Promise.resolve({}); } }; }
-    };
-    return;
+function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+}
+function saveToken(token) {
+  try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
+}
+function clearToken() {
+  try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+}
+
+async function apiFetch(path, options) {
+  options = options || {};
+  var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+  var token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(API_BASE + path, Object.assign({}, options, { headers: headers }));
+}
+
+async function apiJson(path, options) {
+  var res = await apiFetch(path, options);
+  var data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    throw new Error(data.message || data.error || ('HTTP ' + res.status));
   }
+  return data;
+}
+
+function applyGameProfile(profile) {
+  if (!profile) return;
+  if (profile.identity) STATE.identity = profile.identity;
+  STATE.level = profile.level || 1;
+  STATE.xp = profile.xp || 0;
+  STATE.xpToNext = profile.xp_to_next || 100;
+  STATE.missionsCompleted = profile.missions_completed || [];
+
+  if (profile.personality_detail) {
+    try {
+      var detail = typeof profile.personality_detail === 'string'
+        ? JSON.parse(profile.personality_detail) : profile.personality_detail;
+      if (detail && detail.name) STATE.personalityType = detail;
+    } catch (e) {}
+  }
+
+  if (profile.fleet) {
+    STATE.fleetId = profile.fleet.id;
+    STATE.teamSize = profile.team_size || 0;
+    document.getElementById('teamName').textContent = '星际舰队 · ' + profile.fleet.name;
+    document.getElementById('teamName').style.display = 'block';
+    document.getElementById('teamCode').textContent = '邀请码：' + (profile.fleet.invite_code || '');
+    document.getElementById('teamCode').style.display = 'inline-block';
+    document.getElementById('stat-teammates').textContent = STATE.teamSize;
+  }
+
+  var identityLabels = {
+    explorer: '星际探索者 · 求职模式',
+    captain: '舰队舰长 · 组队模式',
+    wanderer: '星际漫游者 · 探索模式'
+  };
+  if (STATE.identity) {
+    document.getElementById('hub-identity').textContent = identityLabels[STATE.identity] || '';
+  }
+  if (STATE.personalityType) {
+    var p = STATE.personalityType;
+    document.getElementById('profileEmoji').textContent = p.emoji || '🌌';
+    document.getElementById('profileType').textContent = p.name || '未测试';
+    document.getElementById('profileIdentity').textContent = p.tagline || identityLabels[STATE.identity] || '';
+    document.getElementById('mission-team').classList.remove('locked');
+    document.getElementById('mission-team').querySelector('.mission-status').textContent = '待组队';
+    document.getElementById('status-personality').textContent = '已完成';
+    document.getElementById('status-personality').className = 'mission-status status-done';
+  }
+  if (STATE.missionsCompleted.includes('personality')) {
+    document.getElementById('mission-team').classList.remove('locked');
+    document.getElementById('status-personality').textContent = '已完成';
+    document.getElementById('status-personality').className = 'mission-status status-done';
+  }
+  if (STATE.missionsCompleted.includes('team')) {
+    document.getElementById('mission-match').classList.remove('locked');
+    document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
+  }
+  if (STATE.missionsCompleted.includes('share')) {
+    document.getElementById('mission-share').classList.remove('locked');
+    document.getElementById('mission-share').querySelector('.mission-status').className = 'mission-status status-done';
+  }
+  updateHub();
+}
+
+async function syncProfileToApi(payload) {
+  if (!getToken()) return;
   try {
-    supabase = _sbLib.createClient(SUPABASE_URL, SUPABASE_KEY);
-    console.log('%c[PlanetX] Supabase initialized', 'color:#C8FF50;');
-  } catch(e) {
-    console.warn('[PlanetX] Supabase init failed:', e);
+    var data = await apiJson('/v1/game/profile-sync', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (data.xp !== undefined) STATE.xp = data.xp;
+    if (data.level !== undefined) STATE.level = data.level;
+    updateHub();
+  } catch (e) {
+    console.warn('[PlanetX] profile-sync failed:', e);
   }
-})();
+}
+
+async function syncMissionToApi(missionId, xpReward) {
+  if (!getToken()) return;
+  try {
+    var data = await apiJson('/v1/game/mission-complete', {
+      method: 'POST',
+      body: JSON.stringify({ mission_id: missionId, xp_reward: xpReward })
+    });
+    if (data.total_xp !== undefined) STATE.xp = data.total_xp;
+    if (data.level !== undefined) STATE.level = data.level;
+    updateHub();
+  } catch (e) {
+    if (e.message && e.message.indexOf('already') === -1) {
+      console.warn('[PlanetX] mission-sync failed:', e);
+    }
+  }
+}
 
 // ===================== GAME STATE =====================
 const STATE = {
@@ -843,45 +917,41 @@ const STATE = {
 
 // ===================== AUTH FUNCTIONS =====================
 async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) { showToast('注册失败: ' + error.message); return null; }
-  
-  if (data.user) {
-    // If session exists, email confirmation is OFF -> auto login
-    if (data.session) {
-      showToast('注册成功！欢迎加入 PlanetX 🚀');
-      await loadProfile(data.user);
-      return data;
-    }
-    
-    // Email confirmation required -> show hint, then try auto sign-in anyway
-    showToast('注册成功！如果收不到验证邮件，请稍等或联系管理员 ⚡');
-    
-    // Try signing in immediately (works if admin has confirmations disabled at DB level)
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (!signInError && signInData.user) {
-      await loadProfile(signInData.user);
-      return signInData;
-    }
-    
-    // If neither worked, return the signup data so caller can handle
-    return data;
+  try {
+    var data = await apiJson('/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email: email, password: password })
+    });
+    saveToken(data.access_token);
+    STATE.user = data.user;
+    await loadProfile(data.user);
+    showToast('注册成功！欢迎加入 PlanetX 🚀');
+    return { user: data.user };
+  } catch (err) {
+    showToast('注册失败: ' + err.message);
+    return null;
   }
-  return data;
 }
 
 async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) { showToast('登录失败: ' + error.message); return null; }
-  if (data.user) {
+  try {
+    var data = await apiJson('/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: email, password: password })
+    });
+    saveToken(data.access_token);
+    STATE.user = data.user;
     await loadProfile(data.user);
     showToast('跃迁成功！欢迎回来 🪐');
+    return { user: data.user };
+  } catch (err) {
+    showToast('登录失败: ' + err.message);
+    return null;
   }
-  return data;
 }
 
 async function signOut() {
-  await supabase.auth.signOut();
+  clearToken();
   STATE.user = null;
   STATE.identity = null;
   STATE.level = 1;
@@ -895,85 +965,14 @@ async function signOut() {
   showToast('已安全退出');
 }
 
-// ===================== LOAD PROFILE FROM SUPABASE =====================
+// ===================== LOAD PROFILE FROM LOOMA API =====================
 async function loadProfile(user) {
   STATE.user = user;
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-  
-  if (data) {
-    STATE.identity = data.identity;
-    STATE.level = data.level || 1;
-    STATE.xp = data.xp || 0;
-    STATE.xpToNext = data.xp_to_next || 100;
-    STATE.personalityType = data.personality_type;
-    
-    if (data.identity) {
-      const identityLabels = {
-        explorer: '星际探索者 · 求职模式',
-        captain: '舰队舰长 · 组队模式',
-        wanderer: '星际漫游者 · 探索模式'
-      };
-      document.getElementById('hub-identity').textContent = identityLabels[data.identity] || '';
-      document.getElementById('profileIdentity').textContent = identityLabels[data.identity] || '';
-    }
-    
-    if (data.personality_type) {
-      const p = data.personality_type;
-      document.getElementById('profileEmoji').textContent = p.emoji || '🌌';
-      document.getElementById('profileType').textContent = p.name || '未测试';
-      document.getElementById('profileIdentity').textContent = p.tagline || '';
-      // Unlock team mission if personality done
-      document.getElementById('mission-team').classList.remove('locked');
-      document.getElementById('mission-team').querySelector('.mission-status').textContent = '待组队';
-      document.getElementById('status-personality').textContent = '已完成';
-      document.getElementById('status-personality').className = 'mission-status status-done';
-    }
-  }
-  
-  // Load completed missions
-  const { data: missions } = await supabase
-    .from('mission_completions')
-    .select('mission_id')
-    .eq('user_id', user.id);
-  STATE.missionsCompleted = (missions || []).map(m => m.mission_id);
-  
-  // Restore mission UI
-  if (STATE.missionsCompleted.includes('personality')) {
-    document.getElementById('mission-team').classList.remove('locked');
-    document.getElementById('mission-team').querySelector('.mission-status').textContent = '待组队';
-    document.getElementById('status-personality').textContent = '已完成';
-    document.getElementById('status-personality').className = 'mission-status status-done';
-  }
-  if (STATE.missionsCompleted.includes('team')) {
-    document.getElementById('mission-match').classList.remove('locked');
-    document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
-  }
-  if (STATE.missionsCompleted.includes('share')) {
-    document.getElementById('mission-share').classList.remove('locked');
-    document.getElementById('mission-share').querySelector('.mission-status').textContent = '已传播';
-    document.getElementById('mission-share').querySelector('.mission-status').className = 'mission-status status-done';
-  }
-  
-  // Load fleet membership
-  const { data: member } = await supabase
-    .from('fleet_members')
-    .select('fleet_id')
-    .eq('user_id', user.id)
-    .single();
-  if (member) {
-    STATE.fleetId = member.fleet_id;
-    await loadFleetData(member.fleet_id);
-  }
-
-  updateHub();
+    var profile = await apiJson('/v1/game/profile');
+    applyGameProfile(profile);
   } catch (err) {
     console.warn('[PlanetX] Profile load failed (using defaults):', err);
-    // Use sensible defaults — user can still use the app
     updateHub();
   }
 }
@@ -996,68 +995,33 @@ async function loadProfile(user) {
   container.appendChild(frag);
 })();
 
-// ===== ULTIMATE SAFETY NET: force past loading screen no matter what =====
-// This runs in the parsing phase — before any async code
-(function forcePastLoading() {
-  // After 5s, if still on loading screen, FORCE show auth screen
-  // Use direct DOM manipulation, no function calls that might fail
-  setTimeout(function() {
-    var loading = document.getElementById('screen-loading');
-    var auth = document.getElementById('screen-auth');
-    if (loading && loading.classList.contains('active')) {
-      loading.classList.remove('active');
-      if (auth) {
-        auth.classList.add('active');
-        console.log('%c[PlanetX] Safety net triggered — forced to auth screen', 'color:orange;');
-      }
-    }
-  }, 5000);
-})();
-
-// Also catch any uncaught errors and log them visibly
-window.addEventListener('error', function(e) {
-  console.log('%c[PlanetX] UNCAUGHT ERROR: ' + (e.message || e.error), 'color:red;font-size:14px;');
-  // Still force past loading
-  setTimeout(function() {
-    var loading = document.getElementById('screen-loading');
-    var auth = document.getElementById('screen-auth');
-    if (loading && loading.classList.contains('active')) {
-      loading.classList.remove('active');
-      if (auth) auth.classList.add('active');
-    }
-  }, 1000);
-});
-
-// ===== SESSION CHECK (with full guards) =====
+// ===== SESSION CHECK =====
 let _loadingResolved = false;
 function resolveLoading(targetScreen) {
   if (_loadingResolved) return;
   _loadingResolved = true;
   switchScreen('screen-loading', targetScreen);
 }
-// Safety net: force transition after 6s no matter what
-setTimeout(() => resolveLoading('screen-auth'), 6000);
+setTimeout(function() { resolveLoading('screen-auth'); }, 5000);
 
 (async function checkSession() {
   try {
-    // Guard: supabase may not have loaded from CDN
-    if (typeof supabase === 'undefined' || !supabase?.auth?.getSession) {
-      console.warn('[PlanetX] Supabase SDK not loaded, falling back to auth screen');
-      return resolveLoading('screen-auth');
+    var token = getToken();
+    if (!token) {
+      setTimeout(function() { resolveLoading('screen-auth'); }, 1500);
+      return;
     }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session && session.user) {
-      await loadProfile(session.user);
-      // Sync referral (fire-and-forget, non-blocking)
-      syncReferralAfterLogin(session.user.id);
-      setTimeout(() => {
-        resolveLoading(STATE.identity ? 'screen-hub' : 'screen-onboarding');
-      }, 1500);
-    } else {
-      setTimeout(() => resolveLoading('screen-auth'), 2000);
-    }
+    var authProfile = await apiJson('/v1/auth/profile');
+    STATE.user = authProfile;
+    var gameProfile = await apiJson('/v1/game/profile');
+    applyGameProfile(gameProfile);
+    syncReferralAfterLogin(authProfile.id);
+    setTimeout(function() {
+      resolveLoading(STATE.identity ? 'screen-hub' : 'screen-onboarding');
+    }, 800);
   } catch (err) {
     console.warn('[PlanetX] Session check failed:', err);
+    clearToken();
     resolveLoading('screen-auth');
   }
 })();
@@ -1074,9 +1038,11 @@ setTimeout(() => resolveLoading('screen-auth'), 6000);
 
 // ===================== SCREEN SWITCHING =====================
 function switchScreen(fromId, toId) {
-  const from = document.getElementById(fromId);
-  const to = document.getElementById(toId);
-  if (from) from.classList.remove('active');
+  document.querySelectorAll('.screen').forEach(function(s) {
+    s.classList.remove('active');
+    s.style.display = '';
+  });
+  var to = document.getElementById(toId);
   if (to) {
     to.classList.add('active');
     to.style.animation = 'none';
@@ -1730,7 +1696,7 @@ async function handleSignUp() {
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
   if (!email || !password) { showToast('请填写邮箱和密码'); return; }
-  if (password.length < 6) { showToast('密码至少6位'); return; }
+  if (password.length < 8) { showToast('密码至少8位'); return; }
   const result = await signUp(email, password);
   if (result && result.user) {
     switchScreen('screen-auth', 'screen-onboarding');
@@ -1742,7 +1708,6 @@ function skipAuth() {
 }
 
 // ===================== CLOUD-SYNCED IDENTITY SELECTION =====================
-// Override the original selectIdentity with cloud-synced version
 const _origSelectIdentity = selectIdentity;
 selectIdentity = async function(type) {
   STATE.identity = type;
@@ -1757,132 +1722,60 @@ selectIdentity = async function(type) {
   addXP(10);
   showToast('身份确认！+10 XP');
   
-  // Sync to Supabase
   if (STATE.user) {
-    await supabase.from('profiles').upsert({
-      id: STATE.user.id,
-      identity: type,
-      level: STATE.level,
-      xp: STATE.xp,
-      xp_to_next: STATE.xpToNext
-    });
+    syncProfileToApi({ identity: type });
   }
   
   switchScreen('screen-onboarding', 'screen-hub');
   updateHub();
 };
 
-// ===================== CLOUD-SYNCED XP SYSTEM =====================
-// Override addXP with cloud sync
-const _origAddXP = addXP;
-addXP = async function(amount) {
-  STATE.xp += amount;
-  STATE.xp = Math.max(0, STATE.xp);
-  document.getElementById('stat-xp').textContent = STATE.xp;
-  
-  let leveledUp = false;
-  while (STATE.xp >= STATE.xpToNext) {
-    STATE.xp -= STATE.xpToNext;
-    STATE.level++;
-    STATE.xpToNext = Math.floor(STATE.xpToNext * 1.5);
-    leveledUp = true;
-    showAchievement('⬆️ 升级！', `你已晋升为 Lv.${STATE.level} · ${getRankName(STATE.level)}`);
-  }
-  
-  // Sync to Supabase
-  if (STATE.user) {
-    const updateData = {
-      id: STATE.user.id,
-      level: STATE.level,
-      xp: STATE.xp,
-      xp_to_next: STATE.xpToNext
-    };
-    if (STATE.identity) updateData.identity = STATE.identity;
-    await supabase.from('profiles').upsert(updateData);
-  }
-  
-  updateHub();
-};
-
 // ===================== CLOUD-SYNCED MISSION SYSTEM =====================
-// Override completeMission with cloud sync
 const _origCompleteMission = completeMission;
 completeMission = async function(missionId) {
   if (STATE.missionsCompleted.includes(missionId)) return;
   STATE.missionsCompleted.push(missionId);
   document.getElementById('stat-tests').textContent = STATE.missionsCompleted.length;
   
-  // Sync to Supabase
+  var xpMap = { personality: 50, share: 30, team: 80, match: 40 };
   if (STATE.user) {
-    await supabase.from('mission_completions').upsert({
-      user_id: STATE.user.id,
-      mission_id: missionId
-    }, { onConflict: 'user_id,mission_id' });
+    syncMissionToApi(missionId, xpMap[missionId] || 10);
   }
 };
 
 // ===================== CLOUD-SYNCED QUIZ RESULT =====================
-// Override showQuizResult with cloud sync for personality_type
 const _origShowQuizResult = showQuizResult;
 showQuizResult = async function() {
-  // Call original logic first (sync - determines personality)
   _origShowQuizResult();
   
-  // Then sync the result to Supabase
   if (STATE.user && STATE.personalityType) {
-    const profileUpdate = {
-      id: STATE.user.id,
-      personality_type: STATE.personalityType,
-      level: STATE.level,
-      xp: STATE.xp,
-      xp_to_next: STATE.xpToNext
-    };
-    if (STATE.identity) profileUpdate.identity = STATE.identity;
-    await supabase.from('profiles').upsert(profileUpdate);
+    syncProfileToApi({
+      personality_type: STATE.personalityType.name,
+      personality_detail: JSON.stringify(STATE.personalityType)
+    });
   }
 };
 
-// ===================== REAL FLEET SYSTEM =====================
+// ===================== REAL FLEET SYSTEM (Looma API) =====================
 async function loadFleetData(fleetId) {
-  const { data: fleet } = await supabase
-    .from('fleets')
-    .select('*')
-    .eq('id', fleetId)
-    .single();
-  
-  if (fleet) {
-    STATE.fleetId = fleet.id;
-    document.getElementById('teamName').textContent = '星际舰队 · ' + fleet.name;
+  try {
+    var data = await apiJson('/v1/game/fleet/mine');
+    if (!data.fleet) return;
+    STATE.fleetId = data.fleet.id;
+    STATE.teamSize = data.team_size || 0;
+    document.getElementById('teamName').textContent = '星际舰队 · ' + data.fleet.name;
     document.getElementById('teamName').style.display = 'block';
-    document.getElementById('teamCode').textContent = '邀请码：' + fleet.invite_code;
+    document.getElementById('teamCode').textContent = '邀请码：' + (data.fleet.invite_code || '');
     document.getElementById('teamCode').style.display = 'inline-block';
-    
-    // Load members
-    const { data: members } = await supabase
-      .from('fleet_members')
-      .select('user_id')
-      .eq('fleet_id', fleetId);
-    
-    STATE.teamSize = (members || []).length;
     document.getElementById('stat-teammates').textContent = STATE.teamSize;
-    
-    // Update member slots
-    (members || []).forEach((m, idx) => {
-      if (m.user_id === STATE.user?.id) return; // skip self
-      const slot = idx + 2; // slot 2 and 3
-      if (slot <= 3) fillMemberSlot(slot - 1);
-    });
-    
-    // Unlock match mission if team complete
-    if (STATE.teamSize >= 3) {
-      if (!STATE.missionsCompleted.includes('team')) {
-        await completeMission('team');
-        await addXP(80);
-        showAchievement('🤝 舰队集结完毕！', '3人成团 · 隐藏星图已解锁');
-      }
+    if (STATE.teamSize >= 3 && !STATE.missionsCompleted.includes('team')) {
+      await completeMission('team');
+      await addXP(80);
       document.getElementById('mission-match').classList.remove('locked');
-      document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
+      showAchievement('🤝 舰队集结完毕！', '3人成团 · 隐藏星图已解锁');
     }
+  } catch (e) {
+    console.warn('[PlanetX] loadFleetData failed:', e);
   }
 }
 
@@ -1890,109 +1783,51 @@ async function createFleet() {
   if (!STATE.user) { showToast('请先登录'); return; }
   if (!STATE.personalityType) { showToast('请先完成人格测试'); return; }
   
-  const code = 'PX-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-  const name = '舰队 ' + code;
+  var code = 'PX-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  var name = '舰队 ' + code;
   
-  const { data, error } = await supabase
-    .from('fleets')
-    .insert({
-      name: name,
-      invite_code: code,
-      captain_id: STATE.user.id
-    })
-    .select()
-    .single();
-  
-  if (error) { showToast('创建舰队失败: ' + error.message); return; }
-  
-  // Join own fleet
-  await supabase.from('fleet_members').insert({
-    fleet_id: data.id,
-    user_id: STATE.user.id
-  });
-  
-  STATE.fleetId = data.id;
-  STATE.teamSize = 1;
-  document.getElementById('stat-teammates').textContent = 1;
-  
-  document.getElementById('teamName').textContent = '星际舰队 · ' + name;
-  document.getElementById('teamName').style.display = 'block';
-  document.getElementById('teamCode').textContent = '邀请码：' + code;
-  document.getElementById('teamCode').style.display = 'inline-block';
-  
-  showToast('舰队创建成功！发送邀请码给好友加入 🚀');
-  
-  // Setup Realtime subscription for new members
-  setupFleetRealtime(data.id);
-  
-  // Override the copy invite button
-  _overrideInviteButton();
+  try {
+    var data = await apiJson('/v1/game/fleet/create', {
+      method: 'POST',
+      body: JSON.stringify({ name: name })
+    });
+    STATE.fleetId = data.id;
+    STATE.teamSize = data.team_size || 1;
+    document.getElementById('stat-teammates').textContent = STATE.teamSize;
+    document.getElementById('teamName').textContent = '星际舰队 · ' + data.name;
+    document.getElementById('teamName').style.display = 'block';
+    document.getElementById('teamCode').textContent = '邀请码：' + data.invite_code;
+    document.getElementById('teamCode').style.display = 'inline-block';
+    showToast('舰队创建成功！发送邀请码给好友加入 🚀');
+    _overrideInviteButton();
+  } catch (err) {
+    showToast('创建舰队失败: ' + err.message);
+  }
 }
 
 async function joinFleet(code) {
   if (!STATE.user) { showToast('请先登录'); return; }
+  if (STATE.fleetId) { showToast('你已经在一个舰队中了'); return; }
   
-  const { data: fleet } = await supabase
-    .from('fleets')
-    .select('*')
-    .eq('invite_code', code.toUpperCase())
-    .single();
-  
-  if (!fleet) { showToast('舰队不存在，请检查邀请码'); return; }
-  
-  // Check if already in a fleet
-  if (STATE.fleetId) {
-    showToast('你已经在一个舰队中了'); return;
-  }
-  
-  // Check fleet size
-  const { count } = await supabase
-    .from('fleet_members')
-    .select('*', { count: 'exact' })
-    .eq('fleet_id', fleet.id);
-  
-  if (count >= 3) { showToast('舰队已满员'); return; }
-  
-  const { error } = await supabase
-    .from('fleet_members')
-    .insert({
-      fleet_id: fleet.id,
-      user_id: STATE.user.id
+  try {
+    var data = await apiJson('/v1/game/fleet/join', {
+      method: 'POST',
+      body: JSON.stringify({ invite_code: code.toUpperCase() })
     });
-  
-  if (error) { showToast('加入失败: ' + error.message); return; }
-  
-  STATE.fleetId = fleet.id;
-  await loadFleetData(fleet.id);
-  setupFleetRealtime(fleet.id);
-  showToast('成功加入舰队！👥');
+    STATE.fleetId = data.fleet_id || (data.fleet && data.fleet.id);
+    await loadFleetData(STATE.fleetId);
+    showToast('成功加入舰队！👥');
+  } catch (err) {
+    showToast('加入失败: ' + err.message);
+  }
 }
 
 function setupFleetRealtime(fleetId) {
-  supabase
-    .channel('fleet-' + fleetId)
-    .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'fleet_members', filter: 'fleet_id=eq.' + fleetId },
-      async (payload) => {
-        if (payload.new.user_id !== STATE.user?.id) {
-          STATE.teamSize++;
-          document.getElementById('stat-teammates').textContent = STATE.teamSize;
-          fillMemberSlot(STATE.teamSize);
-          showToast('👥 新船员加入舰队！');
-          
-          if (STATE.teamSize >= 3) {
-            if (!STATE.missionsCompleted.includes('team')) {
-              await completeMission('team');
-              await addXP(80);
-              document.getElementById('mission-match').classList.remove('locked');
-              document.getElementById('mission-match').querySelector('.mission-status').textContent = '待完成';
-              showAchievement('🤝 舰队集结完毕！', '3人成团 · 隐藏星图已解锁');
-            }
-          }
-        }
-      }
-    )
-    .subscribe();
+  // Realtime via polling fallback (Supabase removed)
+  if (!fleetId || !getToken()) return;
+  setInterval(function() {
+    if (STATE.fleetId === fleetId && getToken()) loadFleetData(fleetId);
+  }, 30000);
 }
 
 function _overrideInviteButton() {
@@ -2084,11 +1919,11 @@ getInviteLink = function() {
 // Sync referral after login (non-blocking, best-effort)
 async function syncReferralAfterLogin(userId) {
   try {
-    const storedRef = localStorage.getItem('planetx_ref');
-    if (storedRef && typeof supabase !== 'undefined' && supabase?.from) {
-      await supabase.from('referrals').insert({
-        new_user_id: userId,
-        ref_code: storedRef
+    var storedRef = localStorage.getItem('planetx_ref');
+    if (storedRef && getToken()) {
+      await apiFetch('/v1/referral/use', {
+        method: 'POST',
+        body: JSON.stringify({ code: storedRef })
       });
       localStorage.removeItem('planetx_ref');
       console.log('%c📡 邀请来源已记录: ' + storedRef, 'color:#00E5FF;');
@@ -2099,7 +1934,7 @@ async function syncReferralAfterLogin(userId) {
 }
 
 // ===================== CONSOLE EASTER EGG =====================
-console.log('%c🪐 PlanetX %c游戏化产品 v3.0 - Supabase Cloud Edition',
+console.log('%c🪐 PlanetX %c游戏化产品 v3.1 - Looma API Edition',
   'color:#C8FF50;font-size:18px;font-weight:bold;',
   'color:#B8B8C8;');
 console.log('%c身份认同 × 社交裂变 × 情绪陪伴 = 不堆料的产品力',
@@ -2108,7 +1943,7 @@ console.log('%c🏆 当前成就系统:', 'color:#FFD700;');
 console.log('  Lv.1 星际人格测试 → Lv.2 组建舰队 → Lv.3 星际匹配 → Lv.4 信号传播');
 console.log('%c💡 提示: 完成人格测试解锁组队，3人成团解锁隐藏星图',
   'color:#00E5FF;font-size:11px;');
-console.log('%c🔗 Supabase 云端同步已启用，数据持久化不丢失',
+console.log('%c🔗 API: ' + API_BASE + ' · 登录用户数据持久化',
   'color:#22c55e;font-size:11px;');
 </script>
 </body>
