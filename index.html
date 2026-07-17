@@ -11,7 +11,7 @@
 <meta property="og:image" content="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='630'><rect fill='%230D0D1A' width='1200' height='630'/><circle cx='600' cy='240' r='180' fill='none' stroke='%23C8FF50' stroke-width='2' opacity='0.3'/><text x='600' y='260' text-anchor='middle' font-size='120' font-family='sans-serif' fill='%23C8FF50' font-weight='bold'>PlanetX</text><text x='600' y='340' text-anchor='middle' font-size='28' font-family='sans-serif' fill='%23B8B8C8'>星际人格测试 · 找到你的星球身份</text><text x='600' y='500' text-anchor='middle' font-size='22' font-family='sans-serif' fill='%236B3FA0'>🪐 8道题 → 6种星际身份 → 3人舰队组队</text></svg>">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:url" content="https://www.genz.ltd">
+<meta property="og:url" content="https://app.genz.ltd">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PlanetX">
 
@@ -25,6 +25,13 @@
 <meta itemprop="name" content="PlanetX · 星际人格测试">
 <meta itemprop="description" content="不是逃离地球，是重装登陆新坐标。8道题解锁你的星际身份。">
 <meta itemprop="image" content="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><rect fill='%230D0D1A' width='300' height='300' rx='20'/><text x='150' y='120' text-anchor='middle' font-size='60' font-family='sans-serif'>🪐</text><text x='150' y='180' text-anchor='middle' font-size='28' font-family='sans-serif' fill='%23C8FF50' font-weight='bold'>PlanetX</text><text x='150' y='220' text-anchor='middle' font-size='14' font-family='sans-serif' fill='%23B8B8C8'>星际人格测试</text></svg>">
+
+<!-- PWA Manifest & Icons -->
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="PlanetX">
 
 <!-- Theme color for mobile browsers -->
 <meta name="theme-color" content="#080810">
@@ -774,6 +781,17 @@ body {
   </div>
 
 </div><!-- /app -->
+
+<!-- PWA Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    console.log('%c[PWA] Service Worker registered: ' + reg.scope, 'color:#C8FF50;');
+  }).catch(function(err) {
+    console.warn('[PWA] SW registration failed:', err);
+  });
+}
+</script>
 
 <script>
 // ===================== SUPABASE INIT (with guards) =====================
