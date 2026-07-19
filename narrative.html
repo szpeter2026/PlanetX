@@ -620,16 +620,27 @@ async function callNavigatorAPI(userText) {
     visited_domains: S.visited,
   };
 
+  // Build headers — include Authorization if user is logged in
+  const headers = { 'Content-Type': 'application/json' };
+  try {
+    const tok = localStorage.getItem('planetx_token');
+    if (tok) headers['Authorization'] = 'Bearer ' + tok;
+  } catch (e) {}
+
   try {
     const resp = await fetch(S.apiBase + '/v1/ask', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(payload),
     });
 
     if (!resp.ok) {
       const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.detail?.message || `HTTP ${resp.status}`);
+      // 401/403 consent required → ask user to log in / grant consent
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error('__CONSENT_REQUIRED__:' + (errData.required_scope || 'ask_rag'));
+      }
+      throw new Error(errData.message || errData.detail?.message || `HTTP ${resp.status}`);
     }
 
     const data = await resp.json();
@@ -698,6 +709,16 @@ async function sendMessage() {
     });
   } catch (err) {
     hideTypingIndicator();
+
+    // Consent required → friendly guidance to log in
+    if (err && err.message && err.message.startsWith('__CONSENT_REQUIRED__')) {
+      setStatus('需要登录');
+      typeNavMsg('为了和你深入对话，Navigator 需要你先完成注册并授权知识库访问（ask_rag）。请前往「返回 PlanetX 主页」→ 个人中心完成授权，授权后即可继续探索。', () => {
+        afterNavResponse();
+      });
+      return;
+    }
+
     setStatus('连接异常');
 
     // Fallback: use local response if API fails
