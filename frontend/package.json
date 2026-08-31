@@ -1,0 +1,16 @@
+{
+  "name": "planetx-standalone-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PlanetX standalone workspace (C-end career growth partner)",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @looma/planetx dev",
+    "build": "pnpm --filter @looma/planetx build",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  }
+}

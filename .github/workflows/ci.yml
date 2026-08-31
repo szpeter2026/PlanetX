@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (all packages)
+        run: pnpm -r run typecheck
+
+      - name: Build PlanetX
+        run: pnpm --filter @looma/planetx build
+        env:
+          VITE_API_BASE: https://api.genz.ltd
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: planetx-dist
+          path: frontend/packages/planetx/dist
+          retention-days: 7

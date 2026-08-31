@@ -1,4 +1,0 @@
-# GitHub 精简仓专用 — 勿排除 HTML / public / 图标
-.git/
-.env
-.env.*
